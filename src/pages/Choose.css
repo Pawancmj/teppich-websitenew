@@ -91,6 +91,7 @@
   .gallery-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
+/* ✅ Mobile: always keep 2-column grid */
 @media (max-width: 480px) {
-  .gallery-grid { grid-template-columns: 1fr; }
+  .gallery-grid { grid-template-columns: repeat(2, 1fr); }
 }

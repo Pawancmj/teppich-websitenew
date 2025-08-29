@@ -1,7 +1,8 @@
 import { useParams, useNavigate } from "react-router-dom";
+import { useState } from "react";
 import styles from "./SampleDetail.module.css";
 
-// Importing images for each sample explicitly
+/* ---------------- Sample 1 Imports ---------------- */
 import sample1_1 from "../../assets/images/sample1/sample1-1.jpg";
 import sample1_2 from "../../assets/images/sample1/sample1-2.jpg";
 import sample1_3 from "../../assets/images/sample1/sample1-3.jpg";
@@ -23,6 +24,7 @@ import sample1_18 from "../../assets/images/sample1/sample1-18.jpg";
 import sample1_19 from "../../assets/images/sample1/sample1-19.jpg";
 import sample1_20 from "../../assets/images/sample1/sample1-20.JPG";
 
+/* ---------------- Sample 2 Imports ---------------- */
 import sample2_1 from "../../assets/images/sample2/sample2-1.JPG";
 import sample2_2 from "../../assets/images/sample2/sample2-2.JPG";
 import sample2_3 from "../../assets/images/sample2/sample2-3.JPG";
@@ -60,7 +62,7 @@ import sample2_34 from "../../assets/images/sample2/sample2-34.JPG";
 import sample2_35 from "../../assets/images/sample2/sample2-35.JPG";
 import sample2_36 from "../../assets/images/sample2/sample2-36.JPG";
 
-
+/* ---------------- Sample 3 Imports ---------------- */
 import sample3_1 from "../../assets/images/sample3/sample3-1.JPG";
 import sample3_2 from "../../assets/images/sample3/sample3-2.JPG";
 import sample3_3 from "../../assets/images/sample3/sample3-3.JPG";
@@ -90,7 +92,10 @@ const SampleDetail = () => {
   const { sampleId } = useParams();
   const navigate = useNavigate();
 
-  // Data for heading + slogan
+  // 🆕 Modal ke liye state
+  const [selectedImg, setSelectedImg] = useState(null);
+
+  // Title + slogans
   const sampleData = {
     1: {
       title: "From Yarn to Masterpiece: The Hand Tufting Journey",
@@ -99,8 +104,7 @@ const SampleDetail = () => {
     },
     2: {
       title: "Hand-Woven: Woven with Intention, Designed by Hand",
-      slogan:
-        "Weaving stillness into motion, a quiet art unfolds.",
+      slogan: "Weaving stillness into motion, a quiet art unfolds.",
     },
     3: {
       title: "Hand Knotted — Masterpieces Made One Knot at a Time",
@@ -108,7 +112,7 @@ const SampleDetail = () => {
     },
   };
 
-  // Images for each sample
+  // All images list
   const sampleImages = {
     1: [
       sample1_1, sample1_2, sample1_3, sample1_4, sample1_5,
@@ -116,7 +120,6 @@ const SampleDetail = () => {
       sample1_11, sample1_12, sample1_13, sample1_14, sample1_15,
       sample1_16, sample1_17, sample1_18, sample1_19, sample1_20,
     ],
-
     2: [
       sample2_1, sample2_2, sample2_3, sample2_4, sample2_5,
       sample2_6, sample2_7, sample2_8, sample2_9, sample2_10,
@@ -127,7 +130,6 @@ const SampleDetail = () => {
       sample2_31, sample2_32, sample2_33, sample2_34, sample2_35,
       sample2_36,
     ],
-
     3: [
       sample3_1, sample3_2, sample3_3, sample3_4, sample3_5,
       sample3_6, sample3_7, sample3_8, sample3_9, sample3_10,
@@ -161,9 +163,23 @@ const SampleDetail = () => {
             src={img}
             alt={`Sample ${sampleId} - ${i + 1}`}
             className={styles.sampleImage}
+            onClick={() => setSelectedImg(img)}
           />
         ))}
       </div>
+
+      {/* 🔍 Modal */}
+      {selectedImg && (
+        <div className={styles.modal} onClick={() => setSelectedImg(null)}>
+          <span
+            className={styles.close}
+            onClick={() => setSelectedImg(null)}
+          >
+            &times;
+          </span>
+          <img src={selectedImg} alt="Large view" className={styles.modalContent} />
+        </div>
+      )}
     </section>
   );
 };

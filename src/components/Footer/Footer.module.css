@@ -1,4 +1,4 @@
-/* ---------- Footer: always 4 columns (no stacking) ---------- */
+/* ---------- Footer: always 4 columns (desktop) ---------- */
 .footer {
   background: linear-gradient(90deg, #d8cfb3, #ccae89);
   color: #fff;
@@ -158,5 +158,23 @@
   .col { padding: 0 4px; }
 }
 
-
+/* ---------- Mobile view: stack into 1 column ---------- */
+@media (max-width: 768px) {
+  .columns {
+    flex-direction: column;
+    align-items: flex-start; /* ✅ align left */
+    text-align: left;        /* ✅ text starts from left */
+    gap: 20px;               /* spacing between sections */
+  }
+  .col {
+    width: 100%;
+    max-width: 100%;
+    padding-left: 0;  /* remove inner side padding */
+    padding-right: 0;
+  }
+  .socials {
+    justify-content: flex-start; /* ✅ icons also align left */
+    flex-wrap: wrap;
+  }
+}
 

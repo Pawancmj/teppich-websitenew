@@ -9,9 +9,6 @@
   line-height: 1.3;    /* keeps text readable */
 }
 
-
-
-
 /* Slogan styling */
 .slogan {
   max-width: 800px;
@@ -111,4 +108,11 @@
 
 .viewSample:hover {
   background-color: #b48a2b;
+}
+
+/* 📱 Mobile fix: prevent horizontal scroll */
+@media (max-width: 480px) {
+  .gallery {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
 }

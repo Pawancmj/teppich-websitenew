@@ -63,7 +63,7 @@ const SampleGallery = () => {
               <h4 className={styles.sampleSub}>{sample.subheading}</h4>
               <p className={styles.sampleDesc}>{sample.description}</p>
               <Link to={`/samples/${sample.id}`} className={styles.viewSample}>
-                View Sample
+                Explore
               </Link>
             </div>
           </div>

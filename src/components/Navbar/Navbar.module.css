@@ -26,6 +26,7 @@
   position: relative;
   padding-bottom: 4px;
   transition: color 0.3s ease;
+  white-space: nowrap; /* ✅ Prevent text breaking */
 }
 
 .navLink:hover {
@@ -47,4 +48,21 @@
   width: 100%;
   background: #6b3105;
   border-radius: 2px;
+}
+
+/* ✅ Mobile fix */
+@media (max-width: 768px) {
+  .navList {
+    flex-wrap: wrap;          /* allow wrapping */
+    justify-content: center;  /* center items */
+    gap: 12px 20px;           /* spacing between items */
+  }
+
+  .navLink {
+    font-size: 15px;          /* slightly smaller font */
+  }
+
+  .navbar {
+    padding: 12px 16px;       /* reduce padding so items don't cut */
+  }
 }
