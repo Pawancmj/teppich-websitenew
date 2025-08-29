@@ -23,7 +23,7 @@ import sample1_18 from "../../assets/images/sample1/sample1-18.jpg";
 import sample1_19 from "../../assets/images/sample1/sample1-19.jpg";
 import sample1_20 from "../../assets/images/sample1/sample1-20.JPG";
 
-import sample2_1 from "../../assets/images/sample2/sample2-1.jpg";
+import sample2_1 from "../../assets/images/sample2/sample2-1.JPG";
 import sample2_2 from "../../assets/images/sample2/sample2-2.jpg";
 import sample2_3 from "../../assets/images/sample2/sample2-3.jpg";
 import sample2_4 from "../../assets/images/sample2/sample2-4.jpg";
