@@ -21,7 +21,7 @@ import sample1_16 from "../../assets/images/sample1/sample1-16.jpg";
 import sample1_17 from "../../assets/images/sample1/sample1-17.jpg";
 import sample1_18 from "../../assets/images/sample1/sample1-18.jpg";
 import sample1_19 from "../../assets/images/sample1/sample1-19.jpg";
-import sample1_20 from "../../assets/images/sample1/sample1-20.jpg";
+import sample1_20 from "../../assets/images/sample1/sample1-20.JPG";
 
 
 import sample2_1 from "../../assets/images/sample2/sample2-1.jpg";
