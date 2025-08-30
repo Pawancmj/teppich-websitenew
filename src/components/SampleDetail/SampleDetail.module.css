@@ -80,10 +80,10 @@
   }
 }
 
-/* 📱 Mobile: 3 columns */
+/* 📱 Mobile: now 2 columns */
 @media (max-width: 600px) {
   .imageGallery {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 10px;
   }
 }
