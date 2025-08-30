@@ -16,7 +16,7 @@ import g11 from "../assets/gallery-11.png";
 import g12 from "../assets/gallery-12.jpg";
 
 import work1 from "../assets/work1.jpg";
-import work2 from "../assets/work2.JPG";
+import work2 from "../assets/work2.png";
 import work3 from "../assets/work3.JPG";
 import work4 from "../assets/work4.JPG";
 import work5 from "../assets/work5.jpg";
