@@ -1,0 +1,108 @@
+.sampleForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 20px auto;
+  background: #fffaf1;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+  max-width: 600px;
+  text-align: left;
+}
+
+.sampleForm h2 {
+  text-align: center;
+  color: #3a2f2f;
+  font-size: 20px;
+  margin-bottom: 10px;
+}
+
+.sampleForm input,
+.sampleForm textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.3s ease;
+}
+
+.sampleForm input:focus,
+.sampleForm textarea:focus {
+  border-color: #d4af37;
+  outline: none;
+}
+
+/* ---------- TEXTAREA ---------- */
+.sampleForm textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* ---------- UPLOAD + PREVIEW ---------- */
+.uploadSection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.uploadSection input[type="file"] {
+  border: 1px dashed #bbb;
+  padding: 10px;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.3s ease;
+}
+
+.uploadSection input[type="file"]:hover {
+  border-color: #d4af37;
+}
+
+.previewBox {
+  width: 100%;
+  max-width: 220px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.previewBox img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ---------- BUTTONS ---------- */
+.buttonGroup {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.buttonGroup button {
+  background: #d4af37;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.buttonGroup button:hover {
+  background: #b48a2b;
+}
+
+.cancelBtn {
+  background: #e74c3c !important;
+}
+
+.cancelBtn:hover {
+  background: #c0392b !important;
+}
