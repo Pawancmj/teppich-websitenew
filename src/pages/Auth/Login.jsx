@@ -4,7 +4,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../../firebase";
 import "./Login.css";
 
-const ADMIN_EMAIL = "teppichart113@gmail.com"; // ✅ match exactly with Firebase
+const ADMIN_EMAIL = "teppichadmin1999@gmail.com"; // ✅ match exactly with Firebase
 
 const Login = () => {
   const navigate = useNavigate();

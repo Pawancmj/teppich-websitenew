@@ -12,13 +12,13 @@ import { getRemoteConfig } from "firebase/remote-config";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyD6hSp8jx-4w-V0I94_rYMQdWEgJ9OghzQ",
-  authDomain: "teppichart-3dbd6.firebaseapp.com",
-  projectId: "teppichart-3dbd6",
-  storageBucket: "teppichart-3dbd6.appspot.com",
-  messagingSenderId: "166946638359",
-  appId: "1:166946638359:web:267cbe05c8f5bee3f3ea52",
-  measurementId: "G-EQ6PJ8YGRT"
+   apiKey: "AIzaSyBmL1CbIDXLtEAZeDDC0VtyLj3HcWq_Hfs",
+  authDomain: "teppichart-e540e.firebaseapp.com",
+  projectId: "teppichart-e540e",
+  storageBucket: "teppichart-e540e.firebasestorage.app",
+  messagingSenderId: "461598880525",
+  appId: "1:461598880525:web:2d74c19961b74f89ab7644"
+
 };
 
 // Initialize Firebase
