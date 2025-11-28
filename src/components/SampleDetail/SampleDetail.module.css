@@ -2,7 +2,6 @@
   padding: 60px 20px;
   text-align: center;
   min-height: 100vh;
-
   background: linear-gradient(135deg, #fdf6e3, #e0d4c3);
   font-family: "Playfair Display", serif;
   color: #3a2f2f;
@@ -68,6 +67,24 @@
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
 }
 
+/* NEW: Close Related Image Button */
+.closeRelatedButton {
+  margin: 15px 0;
+  padding: 10px 20px;
+  background: #d4af37;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-family: inherit;
+  transition: background 0.3s ease;
+}
+
+.closeRelatedButton:hover {
+  background: #b48a2b;
+}
+
 @media (max-width: 900px) {
   .imageGallery {
     grid-template-columns: repeat(4, 1fr);
@@ -82,7 +99,7 @@
   }
 }
 
-/* Modal container with vertical stacking */
+/* FIXED Modal - Better responsive handling */
 .modal {
   position: fixed;
   top: 0;
@@ -90,72 +107,153 @@
   width: 100%;
   height: 100%;
   background: rgba(0,0,0,0.8);
-
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-
   z-index: 2000;
-  padding: 20px 0;
+  padding: 20px;
+  overflow: auto; /* Allow scrolling if content overflows */
 }
 
-/* Inner container stacking large image and related images */
+/* FIXED Modal Inner - Proper scrolling and sizing */
 .modalInner {
   display: flex;
   flex-direction: column;
   align-items: center;
-  max-width: 90vw;
-  max-height: 80vh;
-  overflow: hidden;
-  position: relative;
+  max-width: 95vw;
+  max-height: 95vh;
+  width: 100%;
+  overflow-y: auto; /* Scroll vertically if needed */
+  padding: 20px;
+  box-sizing: border-box;
 }
 
+/* FIXED Main Modal Image */
 .modalContent {
-  max-width: 100%;
-  max-height: 70vh;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-  margin-bottom: 1rem; /* space below large image */
+  max-width: 90vw;
+  max-height: 60vh;
+  width: auto;
+  height: auto;
+  border-radius: 12px;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+  margin-bottom: 20px;
+  object-fit: contain;
 }
 
+/* FIXED Close Button */
 .close {
-  position: absolute;
-  top: 20px;
+  position: fixed;
+  top: 30px;
   right: 30px;
-  font-size: 40px;
+  font-size: 36px;
   font-weight: bold;
   color: white;
   cursor: pointer;
   z-index: 2100;
-}
-
-.relatedImages {
-  width: 590px;
-  height: 190px;
+  background: rgba(0,0,0,0.5);
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
   display: flex;
+  align-items: center;
   justify-content: center;
+  transition: background 0.3s ease;
 }
 
+.close:hover {
+  background: rgba(255,0,0,0.8);
+}
+
+/* FIXED Related Images Container */
+.relatedImagesContainer {
+  width: 100%;
+  max-width: 800px;
+  padding: 0 10px;
+  box-sizing: border-box;
+}
+
+.relatedImagesContainer p {
+  color: white;
+  font-size: 18px;
+  margin-bottom: 15px;
+  font-weight: 500;
+}
+
+/* FIXED Related Images Grid - Fully Responsive */
 .relatedImagesGrid {
   display: flex;
-  /* overflow-x: auto; */
-  gap: 1rem;
-  max-width: 90vw;
-  
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  padding: 10px 0;
+  max-width: 100%;
 }
 
+/* FIXED Related Thumbnails in Admin */
 .relatedThumbnail {
-  flex: 0 0 auto;
   width: 80px;
   height: 80px;
   object-fit: cover;
-  border-radius: 4px;
   cursor: pointer;
-  box-shadow: 0 0 4px rgba(0,0,0,0.2);
-  transition: transform 0.2s ease;
+  border-radius: 8px;
+  border: 2px solid #ddd;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
 }
 
 .relatedThumbnail:hover {
-  transform: scale(1.1);
+  border-color: #d4af37;
+  transform: scale(1.05);
+}
+
+/* FIXED Related Images in Modal - Much Better Sizing */
+.relatedThumbnailLarge {
+  width: 120px;
+  height: 120px;
+  max-width: 140px;
+  object-fit: cover;
+  cursor: pointer;
+  border: 3px solid rgba(255,255,255,0.3);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.relatedThumbnailLarge:hover {
+  border-color: #d4af37;
+  transform: scale(1.08);
+  box-shadow: 0 4px 12px rgba(212,175,55,0.4);
+}
+
+/* RESPONSIVE FIXES */
+@media (max-width: 768px) {
+  .modalContent {
+    max-height: 50vh;
+    max-width: 95vw;
+  }
+  
+  .relatedThumbnailLarge {
+    width: 90px;
+    height: 90px;
+  }
+  
+  .relatedImagesGrid {
+    gap: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .relatedThumbnailLarge {
+    width: 70px;
+    height: 70px;
+  }
+  
+  .close {
+    top: 15px;
+    right: 15px;
+    font-size: 28px;
+    width: 40px;
+    height: 40px;
+  }
 }

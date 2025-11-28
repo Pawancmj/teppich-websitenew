@@ -35,7 +35,10 @@ const SampleDetail = () => {
   const selectedImg = relatedSelectedImg || baseSelectedImg;
 
   const currentImageObj = selectedImg
-    ? images.find((img) => img.url === selectedImg)
+    ? images.find((img) => {
+        const url = typeof img === "string" ? img : img.url;
+        return url === selectedImg;
+      })
     : null;
 
   // Called when clicking main gallery images
@@ -68,15 +71,18 @@ const SampleDetail = () => {
 
       <div className={styles.imageGallery}>
         {images.length > 0 ? (
-          images.map((img, i) => (
-            <img
-              key={i}
-              src={img.url || img}
-              alt={`${title} - Image ${i + 1}`}
-              className={styles.sampleImage}
-              onClick={() => openModalWithImage(img.url || img)}
-            />
-          ))
+          images.map((img, i) => {
+            const imgUrl = typeof img === "string" ? img : img.url;
+            return (
+              <img
+                key={i}
+                src={imgUrl}
+                alt={`${title} - Image ${i + 1}`}
+                className={styles.sampleImage}
+                onClick={() => openModalWithImage(imgUrl)}
+              />
+            );
+          })
         ) : (
           <p>No images available for this sample.</p>
         )}
@@ -94,18 +100,32 @@ const SampleDetail = () => {
           </span>
 
           <div className={styles.modalInner} onClick={(e) => e.stopPropagation()}>
+            {/* Show the current main image */}
             <img src={selectedImg} alt="Large view" className={styles.modalContent} />
 
+            {/* Close related image only button */}
+            {relatedSelectedImg && (
+              <button
+                onClick={() => setRelatedSelectedImg(null)}
+                className={styles.closeRelatedButton}
+                aria-label="Close related image"
+              >
+                Close Related Image
+              </button>
+            )}
+
+            {/* Show related images below the main one */}
             {currentImageObj && currentImageObj.relatedImages?.length > 0 && (
-              <div className={styles.relatedImages}>
+              <div className={styles.relatedImagesContainer}>
+                <p>Related Images</p>
                 <div className={styles.relatedImagesGrid}>
                   {currentImageObj.relatedImages.map((relImg, i) => (
                     <img
                       key={i}
                       src={relImg}
                       alt={`Related image ${i + 1}`}
-                      className={styles.relatedThumbnail}
-                      onClick={() => setRelatedSelectedImg(relImg)}
+                      className={styles.relatedThumbnailLarge}
+                      onClick={() => setRelatedSelectedImg(relImg)} // click to set as main image
                     />
                   ))}
                 </div>

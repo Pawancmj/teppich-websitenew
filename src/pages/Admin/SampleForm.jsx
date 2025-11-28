@@ -8,6 +8,8 @@ const SampleForm = ({ onSave, editingSample, setEditingSample }) => {
   const [category, setCategory] = useState("");
   const [imageFiles, setImageFiles] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
+  const [imageUrls, setImageUrls] = useState([]);
+  const [newImageUrlInput, setNewImageUrlInput] = useState("");
 
   useEffect(() => {
     if (editingSample) {
@@ -15,8 +17,17 @@ const SampleForm = ({ onSave, editingSample, setEditingSample }) => {
       setTitle(editingSample.title || "");
       setDescription(editingSample.description || "");
       setCategory(editingSample.category || "");
-      setImagePreviews(editingSample.images || []);
+
+      const previews = (editingSample.images || []).map((img) =>
+        typeof img === "string" ? img : img.url || ""
+      );
+      setImagePreviews(previews);
+
+      const urls = (editingSample.images || []).filter((img) => typeof img === "string");
+      setImageUrls(urls);
+
       setImageFiles([]);
+      setNewImageUrlInput("");
     } else {
       setId("");
       setTitle("");
@@ -24,12 +35,14 @@ const SampleForm = ({ onSave, editingSample, setEditingSample }) => {
       setCategory("");
       setImageFiles([]);
       setImagePreviews([]);
+      setImageUrls([]);
+      setNewImageUrlInput("");
     }
   }, [editingSample]);
 
   const handleImageChange = (e) => {
     const files = Array.from(e.target.files);
-    if (files.length === 0) return;
+    if (!files.length) return;
 
     setImageFiles((prev) => [...prev, ...files]);
 
@@ -42,8 +55,25 @@ const SampleForm = ({ onSave, editingSample, setEditingSample }) => {
     });
   };
 
+  const handleAddImageUrl = () => {
+    const url = newImageUrlInput.trim();
+    if (!url) return;
+    setImageUrls((prev) => [...prev, url]);
+    setImagePreviews((prev) => [...prev, url]);
+    setNewImageUrlInput("");
+  };
+
   const handleRemoveImage = (idx) => {
     setImagePreviews((prev) => prev.filter((_, i) => i !== idx));
+
+    const existingCount = imagePreviews.length - imageFiles.length - imageUrls.length;
+    if (idx >= existingCount && idx < existingCount + imageFiles.length) {
+      const fileIndex = idx - existingCount;
+      setImageFiles((prev) => prev.filter((_, i) => i !== fileIndex));
+    } else if (idx >= existingCount + imageFiles.length) {
+      const urlIndex = idx - existingCount - imageFiles.length;
+      setImageUrls((prev) => prev.filter((_, i) => i !== urlIndex));
+    }
   };
 
   const handleSubmit = (e) => {
@@ -56,20 +86,30 @@ const SampleForm = ({ onSave, editingSample, setEditingSample }) => {
       alert("Please upload at least one image.");
       return;
     }
+
+    const existingImagesCount = imagePreviews.length - imageFiles.length - imageUrls.length;
+    const existingImages = imagePreviews.slice(0, existingImagesCount);
+    const newFiles = imageFiles;
+    const newUrls = imageUrls;
+
     const newItem = {
       id,
       title: title || "Untitled",
       description: description || "",
       category: category || "",
-      images: imagePreviews,
+      images: [...existingImages, ...newFiles, ...newUrls],
     };
+
     onSave(newItem);
+
     setId("");
     setTitle("");
     setDescription("");
     setCategory("");
     setImageFiles([]);
     setImagePreviews([]);
+    setImageUrls([]);
+    setNewImageUrlInput("");
     if (editingSample) setEditingSample(null);
   };
 
@@ -119,9 +159,10 @@ const SampleForm = ({ onSave, editingSample, setEditingSample }) => {
           />
         </div>
       </fieldset>
+
       <fieldset className={styles.sectionGroup}>
         <legend>
-          Upload Images <span style={{ fontSize: 13 }}>( .png images only)</span>
+          Upload Images and Add Image URLs <span style={{ fontSize: 13 }}>(.png, .jpg, .jpeg)</span>
         </legend>
         <div className={styles.uploadSection}>
           <input
@@ -131,18 +172,41 @@ const SampleForm = ({ onSave, editingSample, setEditingSample }) => {
             onChange={handleImageChange}
             aria-label="Upload images"
           />
+          <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem" }}>
+            <input
+              type="text"
+              placeholder="Paste image URL here"
+              value={newImageUrlInput}
+              onChange={(e) => setNewImageUrlInput(e.target.value)}
+              style={{ flexGrow: 1 }}
+            />
+            <button type="button" onClick={handleAddImageUrl}>
+              Add URL
+            </button>
+          </div>
         </div>
+
         {imagePreviews.length > 0 && (
           <div
             className={styles.previewBox}
-            style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.5rem" }}
+            style={{
+              display: "flex",
+              gap: "0.5rem",
+              flexWrap: "wrap",
+              marginTop: "0.5rem",
+            }}
           >
             {imagePreviews.map((src, idx) => (
               <div key={idx} style={{ position: "relative" }}>
                 <img
                   src={src}
                   alt={`Preview ${idx + 1}`}
-                  style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 4 }}
+                  style={{
+                    width: 80,
+                    height: 80,
+                    objectFit: "cover",
+                    borderRadius: 4,
+                  }}
                 />
                 <button
                   type="button"
@@ -168,6 +232,7 @@ const SampleForm = ({ onSave, editingSample, setEditingSample }) => {
           </div>
         )}
       </fieldset>
+
       <div className={styles.buttonGroup}>
         <button type="submit">{editingSample ? "Update" : "Add"}</button>
         {editingSample && (

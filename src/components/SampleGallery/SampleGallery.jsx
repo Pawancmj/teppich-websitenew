@@ -4,10 +4,10 @@ import { useData } from "../../context/DataContext";
 
 const SampleGallery = () => {
   const { sampleData, loading } = useData();
-  console.log("sample data is: ",sampleData)
 
   if (loading) return <p>Loading...</p>;
-  if (!sampleData.length) return <p>No samples available.</p>;
+
+  if (!sampleData || sampleData.length === 0) return <p>No samples available.</p>;
 
   return (
     <section className={styles.sampleSection}>
