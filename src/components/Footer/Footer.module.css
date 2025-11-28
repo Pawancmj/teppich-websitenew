@@ -1,0 +1,180 @@
+/* ---------- Footer: always 4 columns (desktop) ---------- */
+.footer {
+  background: linear-gradient(90deg, #d8cfb3, #ccae89);
+  color: #fff;
+  padding: clamp(12px, 3vw, 40px) 20px;
+  font-family: "Times New Roman", serif;
+  box-sizing: border-box;
+}
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 12px;
+  box-sizing: border-box;
+}
+
+.columns {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: clamp(8px, 2.5vw, 40px);
+  flex-wrap: nowrap; 
+  overflow: visible;
+}
+
+.col {
+  flex: 1 1 0;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0 8px;
+}
+
+/* Column 1: Logo + blurb */
+.logoCard {
+  width: 100%;
+  max-width: 140px;
+  border: 2px solid #f8f5f0;
+  border-radius: 8px;
+  padding: 6px;
+  margin-bottom: 12px;
+}
+.logoCard img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain;
+}
+.blurb {
+  font-size: clamp(12px, 1.6vw, 16px);
+  line-height: 1.4;
+  color: #fff;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Column 2: Nav */
+.heading {
+  margin-bottom: 8px;
+  font-size: clamp(14px, 2vw, 18px);
+  font-weight: 700;
+  color: #6b3105;
+}
+.linkList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.linkList li { margin: 6px 0; }
+.linkList a {
+  text-decoration: none;
+  color: #f8f5f0;
+  font-size: clamp(12px, 1.6vw, 16px);
+  display: inline-block;
+  transition: color 0.2s, border-bottom 0.2s;
+}
+.linkList a:hover { color: #6b3105; border-bottom: 1px solid #f1c40f; }
+
+/* Column 3: Address + socials */
+.addr {
+  font-style: normal;
+  line-height: 1.4;
+  margin-bottom: 8px;
+  font-size: clamp(12px, 1.6vw, 15px);
+}
+
+.subHeading {
+  font-size: clamp(13px, 2vw, 16px);
+  font-weight: 600;
+  color: #a66431;
+  margin: 12px 0 6px;
+}
+
+.socials {
+  display: flex;
+  gap: clamp(8px, 2vw, 14px);
+  margin: 12px 0;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.socials a {
+  color: #f8f5f0;
+  font-size: clamp(14px, 3vw, 20px);
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.socials a:hover {
+  color: #f1c40f;
+}
+
+/* Column 4: Regional contacts */
+.subHeading {
+  font-size: clamp(13px, 2vw, 16px);
+  font-weight: 600;
+  color: #a66431;
+  margin: 12px 0 6px;
+}
+.regionContacts {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+}
+.regionContacts li {
+  margin: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: clamp(12px, 1.6vw, 15px);
+}
+.regionContacts a {
+  color: #f8f5f0;
+  text-decoration: none;
+}
+.regionContacts a:hover { color: yellow; }
+
+/* Divider & copyright */
+.divider {
+  border: none;
+  border-top: 1px solid #f8f5f0;
+  margin: 20px 0;
+}
+.copyright {
+  font-size: clamp(11px, 1.6vw, 12px);
+  text-align: center;
+  margin-top: 8px;
+}
+
+/* Tiny screens */
+@media (max-width: 360px) {
+  .columns { gap: 6px; }
+  .logoCard { max-width: 90px; }
+  .heading { font-size: clamp(12px, 3vw, 15px); }
+  .col { padding: 0 4px; }
+}
+
+/* ---------- Mobile view: stack into 1 column ---------- */
+@media (max-width: 768px) {
+  .columns {
+    flex-direction: column;
+    align-items: flex-start; /* ✅ align left */
+    text-align: left;        /* ✅ text starts from left */
+    gap: 20px;               /* spacing between sections */
+  }
+  .col {
+    width: 100%;
+    max-width: 100%;
+    padding-left: 0;  /* remove inner side padding */
+    padding-right: 0;
+  }
+  .socials {
+    justify-content: flex-start; /* ✅ icons also align left */
+    flex-wrap: wrap;
+  }
+}
+

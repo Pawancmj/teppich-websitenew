@@ -1,0 +1,68 @@
+.navbar {
+  background: linear-gradient(90deg, #d8cfb3, #ccae89); /* ✅ Gradient color */
+  padding: 15px 30px;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  border-bottom: none; /* ✅ Removed old border since gradient looks cleaner */
+
+  display: flex;
+  justify-content: center; /* ✅ Center nav items */
+  align-items: center;
+}
+
+.navList {
+  display: flex;
+  gap: 25px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.navLink {
+  text-decoration: none;
+  color: #fff; /* ✅ White text looks better on gradient */
+  font-weight: 500;
+  position: relative;
+  padding-bottom: 4px;
+  transition: color 0.3s ease;
+  white-space: nowrap; /* ✅ Prevent text breaking */
+}
+
+.navLink:hover {
+  color: #6b3105; /* ✅ Light shade on hover */
+}
+
+/* ✅ Active Link Styling */
+.active {
+  color: #6b3105; /* ✅ Highlight active link */
+  font-weight: 600;
+}
+
+.active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: #6b3105;
+  border-radius: 2px;
+}
+
+/* ✅ Mobile fix */
+@media (max-width: 768px) {
+  .navList {
+    flex-wrap: wrap;          /* allow wrapping */
+    justify-content: center;  /* center items */
+    gap: 12px 20px;           /* spacing between items */
+  }
+
+  .navLink {
+    font-size: 15px;          /* slightly smaller font */
+  }
+
+  .navbar {
+    padding: 12px 16px;       /* reduce padding so items don't cut */
+  }
+}
