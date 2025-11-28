@@ -73,18 +73,10 @@ export function DataProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [deletedItems, setDeletedItems] = useState(loadDeletedItems());
   const deletedItemsRef = useRef(deletedItems);
-
+  
+  // 🔥 SINGLE RUNNING LISTENERS - EMPTY DEPENDENCY ARRAY
   useEffect(() => {
-    deletedItemsRef.current = deletedItems;
-  }, [deletedItems]);
-
-  useEffect(() => {
-    const loaded = loadDeletedItems();
-    setDeletedItems(loaded);
-  }, []);
-
-  useEffect(() => {
-    console.log("🔥 RENDERING with deleted:", Array.from(deletedItems));
+    console.log("🔥 SETUP SINGLE LISTENERS");
     
     const qGallery = query(
       collection(db, "galleryImages"),
@@ -108,17 +100,16 @@ export function DataProvider({ children }) {
         firestoreData.push({ id: docSnap.id, ...docSnap.data() })
       );
 
-      console.log(`📊 Firestore: ${firestoreData.length} total, deleted: ${deletedItems.size}`);
-
+      // 🔥 APPLY DELETED FILTER HERE (ref.current = reactive)
       const allowedIds = new Set(
         initialCollection
           .map(item => item.id)
-          .filter(id => !deletedItems.has(id))
+          .filter(id => !deletedItemsRef.current.has(id))
       );
       const validFirestoreData = firestoreData.filter(item => allowedIds.has(item.id));
 
       const mergedCollections = initialCollection
-        .filter(baseItem => !deletedItems.has(baseItem.id))
+        .filter(baseItem => !deletedItemsRef.current.has(baseItem.id))
         .map((baseItem) => {
           const fireItem = validFirestoreData.find(item => item.id === baseItem.id);
           
@@ -159,16 +150,29 @@ export function DataProvider({ children }) {
           };
         });
 
-      console.log(`✅ Showing ${mergedCollections.length}/${initialCollection.length} collections`);
+      console.log(`✅ Showing ${mergedCollections.length}/${initialCollection.length} collections (deleted: ${deletedItemsRef.current.size})`);
       setCollections(mergedCollections);
       if (loading) setLoading(false);
     });
 
+    // 🔥 SINGLE CLEANUP - Runs only on unmount
     return () => {
+      console.log("🔥 CLEANUP LISTENERS");
       unsubGallery();
       unsubCollection();
     };
+  }, []); // 🔥 EMPTY = SINGLE LISTENER FOREVER!
+
+  // 🔥 SYNC REF WITH STATE (doesn't trigger re-render)
+  useEffect(() => {
+    deletedItemsRef.current = deletedItems;
   }, [deletedItems]);
+
+  // 🔥 LOAD DELETED ITEMS ON STARTUP
+  useEffect(() => {
+    const loaded = loadDeletedItems();
+    setDeletedItems(loaded);
+  }, []);
 
   const combinedGallery = [...hardcodedGallery, ...gallery];
 
@@ -216,6 +220,7 @@ export function DataProvider({ children }) {
 
     const cleanItem = cleanFirestoreData(updatedItem);
 
+    // 🔥 RESTORE IF DELETED
     setDeletedItems(prev => {
       const newSet = new Set(prev);
       newSet.delete(id);
@@ -374,10 +379,9 @@ export function DataProvider({ children }) {
     });
   }, []);
 
-  // 🔥 FULL RELATED IMAGES FUNCTIONS
   const addRelatedImage = useCallback(async (collectionId, imageIndex, relatedImageFileOrUrl) => {
     if (!currentUser) throw new Error("Not authenticated");
-    if (deletedItems.has(collectionId)) {
+    if (deletedItemsRef.current.has(collectionId)) {
       throw new Error("Cannot modify deleted collection");
     }
 
@@ -436,11 +440,11 @@ export function DataProvider({ children }) {
     } else {
       await setDoc(docRef, { images: updatedImages, createdAt: new Date() });
     }
-  }, [currentUser, uploadImage, collections, deletedItems]);
+  }, [currentUser, uploadImage, collections]);
 
   const removeRelatedImage = useCallback(async (collectionId, imageIndex, relatedImageUrl) => {
     if (!currentUser) throw new Error("Not authenticated");
-    if (deletedItems.has(collectionId)) {
+    if (deletedItemsRef.current.has(collectionId)) {
       throw new Error("Cannot modify deleted collection");
     }
 
@@ -484,7 +488,7 @@ export function DataProvider({ children }) {
     } else {
       await setDoc(docRef, { images: updatedImages, createdAt: new Date() });
     }
-  }, [currentUser, collections, deletedItems]);
+  }, [currentUser, collections]);
 
   return (
     <DataContext.Provider
