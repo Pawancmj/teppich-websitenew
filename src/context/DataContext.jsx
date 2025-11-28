@@ -77,7 +77,8 @@ export function DataProvider({ children }) {
           return acc;
         }, {});
 
-        const merged = initialCollection.map((baseItem) => {
+        // FIXED: Process base items first
+        const mergedBaseItems = initialCollection.map((baseItem) => {
           const fireItem = firestoreById[baseItem.id];
           if (fireItem) {
             const baseImages = normalizeImages(baseItem.images);
@@ -122,17 +123,21 @@ export function DataProvider({ children }) {
           };
         });
 
-        // Append Firestore collections not in initialCollection
-        firestoreData.forEach((item) => {
-          if (!initialCollection.find((c) => c.id === item.id)) {
-            merged.push({
-              ...item,
-              images: normalizeImages(item.images),
-            });
-          }
-        });
+        // FIXED: Collect Firestore-only new items safely (no mutation)
+        const firestoreOnlyItems = firestoreData
+          .filter((item) => !initialCollection.find((c) => c.id === item.id))
+          .map((item) => ({
+            ...item,
+            images: normalizeImages(item.images),
+          }));
 
-        setCollections(merged);
+        // FIXED: Combine all uniquely using Map to prevent duplicates
+        const combinedCollections = [...mergedBaseItems, ...firestoreOnlyItems];
+        const uniqueCollectionsMap = new Map();
+        combinedCollections.forEach((c) => uniqueCollectionsMap.set(c.id, c));
+        const finalCollections = Array.from(uniqueCollectionsMap.values());
+
+        setCollections(finalCollections);
         setLoading(false);
       });
 
@@ -187,10 +192,15 @@ export function DataProvider({ children }) {
     await deleteDoc(docRef);
   };
 
+  // FIXED: addcollection - Merge with existing images if document exists
   const addcollection = async (item) => {
     if (!currentUser) throw new Error("Not authenticated");
 
-    const images = await Promise.all(
+    const docRef = doc(db, "collectionImages", item.id);
+    const docSnap = await getDoc(docRef);
+
+    // Process new images (upload files, normalize URLs)
+    const newImages = await Promise.all(
       (item.images || []).map(async (img) => {
         if (img.file) {
           const url = await uploadImage(img.file, "collections");
@@ -200,21 +210,46 @@ export function DataProvider({ children }) {
       })
     );
 
-    const docRef = doc(db, "collectionImages", item.id);
-    await setDoc(
-      docRef,
-      { ...item, images, createdAt: new Date() },
-      { merge: true }
-    );
+    if (docSnap.exists()) {
+      // Merge new images with existing ones
+      const existingData = docSnap.data();
+      const existingImages = normalizeImages(existingData.images || []);
+
+      // Merge by URL (new images take priority)
+      const imagesByUrl = new Map();
+      existingImages.forEach((img) => {
+        if (img?.url) imagesByUrl.set(img.url, img);
+      });
+      newImages.forEach((img) => {
+        if (img?.url) imagesByUrl.set(img.url, img);
+      });
+
+      const mergedImages = Array.from(imagesByUrl.values());
+
+      await updateDoc(docRef, { 
+        ...item, 
+        images: mergedImages,
+        updatedAt: new Date()
+      });
+    } else {
+      // New document - just set the images
+      await setDoc(docRef, { 
+        ...item, 
+        images: newImages, 
+        createdAt: new Date() 
+      });
+    }
   };
 
+  // FIXED: updatecollection - Always merge with existing images
   const updatecollection = async (id, updatedItem) => {
     if (!currentUser) throw new Error("Not authenticated");
 
     const docRef = doc(db, "collectionImages", id);
     const docSnap = await getDoc(docRef);
 
-    const images = await Promise.all(
+    // Process new images from the update
+    const newImages = await Promise.all(
       (updatedItem.images || []).map(async (img) => {
         if (img.file) {
           const url = await uploadImage(img.file, "collections");
@@ -225,9 +260,33 @@ export function DataProvider({ children }) {
     );
 
     if (docSnap.exists()) {
-      await updateDoc(docRef, { ...updatedItem, images });
+      // Merge new images with all existing images
+      const existingData = docSnap.data();
+      const existingImages = normalizeImages(existingData.images || []);
+
+      // Merge by URL (new images take priority)
+      const imagesByUrl = new Map();
+      existingImages.forEach((img) => {
+        if (img?.url) imagesByUrl.set(img.url, img);
+      });
+      newImages.forEach((img) => {
+        if (img?.url) imagesByUrl.set(img.url, img);
+      });
+
+      const mergedImages = Array.from(imagesByUrl.values());
+
+      await updateDoc(docRef, { 
+        ...updatedItem, 
+        images: mergedImages,
+        updatedAt: new Date()
+      });
     } else {
-      await setDoc(docRef, { ...updatedItem, images, createdAt: new Date() });
+      // New document
+      await setDoc(docRef, { 
+        ...updatedItem, 
+        images: newImages, 
+        createdAt: new Date() 
+      });
     }
   };
 
