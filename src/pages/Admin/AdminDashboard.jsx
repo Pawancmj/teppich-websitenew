@@ -3,11 +3,8 @@ import SampleForm from "./SampleForm";
 import styles from "./AdminDashboard.module.css";
 import { useData } from "../../context/DataContext";
 import { useAuth } from "../../context/AuthContext";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "../../firebase";
 import { sampleData } from "../../data/categories";
 
-// Normalize images helper to keep consistent format
 const normalizeImages = (imgs) =>
   (imgs || []).map((img) => {
     if (typeof img === "string") return { url: img, relatedImages: [] };
@@ -23,6 +20,7 @@ const AdminDashboard = () => {
     deletegallery,
     addcollection,
     deletecollection,
+    restorecollection,
     addRelatedImage,
     removeRelatedImage,
     loading: dataLoading,
@@ -35,6 +33,7 @@ const AdminDashboard = () => {
   const [newUrl, setNewUrl] = useState("");
   const [editingSample, setEditingSample] = useState(null);
   const [addingRelatedTo, setAddingRelatedTo] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   if (authLoading || dataLoading) {
     return (
@@ -54,35 +53,19 @@ const AdminDashboard = () => {
 
   const handleSaveCollection = async (item) => {
     try {
-      const docRef = doc(db, "collectionImages", item.id);
-      const docSnap = await getDoc(docRef);
-      const originalTitle = sampleData[item.id]?.title || "";
-
       const newImages = normalizeImages(item.images);
+      const cleanItem = {
+        id: item.id,
+        title: item.title?.trim() || sampleData[item.id]?.title || "",
+        description: item.description?.trim() || "",
+        category: item.category?.trim() || "",
+        images: newImages,
+      };
 
-      if (docSnap.exists()) {
-        const existingData = docSnap.data();
-
-        const updatedData = {
-          ...existingData,
-          ...item,
-          title:
-            item.title?.trim() && item.title.trim() !== "Untitled"
-              ? item.title.trim()
-              : existingData.title || originalTitle,
-          description: item.description?.trim() || existingData.description,
-          category: item.category?.trim() || existingData.category,
-          images: newImages,
-        };
-
-        await updatecollection(item.id, updatedData);
+      if (sampleData[item.id]) {
+        await addcollection(cleanItem);
       } else {
-        const newTitle =
-          item.title?.trim() && item.title.trim() !== "Untitled"
-            ? item.title.trim()
-            : originalTitle;
-
-        await addcollection({ ...item, title: newTitle, images: newImages });
+        await updatecollection(item.id, cleanItem);
       }
     } catch (error) {
       console.error("Failed to save collection:", error);
@@ -121,37 +104,64 @@ const AdminDashboard = () => {
   };
 
   const handleDeleteCollection = async (id) => {
-    if (window.confirm("Delete this collection item?")) {
+    if (window.confirm(`Delete collection "${sampleData[id]?.title || id}"?`)) {
+      console.log("🗑️ DELETE COLLECTION:", id);
+      
+      setDeletingId(id);
+      
       try {
-        await deletecollection(id);
+        const result = await deletecollection(id);
+        console.log("✅ COLLECTION DELETED:", result);
+        alert("✅ Collection deleted successfully!");
       } catch (error) {
-        console.error("Failed to delete collection item:", error);
+        console.error("💥 COLLECTION DELETE FAILED:", error);
+        alert(`❌ Delete failed: ${error.message}`);
+      } finally {
+        setDeletingId(null);
       }
     }
   };
 
   const handleDeleteImage = async (collectionId, imageIndex) => {
     if (window.confirm("Delete this image?")) {
-      const collectionItem = collection.find((c) => c.id === collectionId);
-      if (!collectionItem) return;
-
-      const updatedImages = collectionItem.images.filter((_, i) => i !== imageIndex);
-      const normalizedImages = normalizeImages(updatedImages);
-
-      const updatedItem = { ...collectionItem, images: normalizedImages };
-
       try {
+        console.log("🖼️ DELETING IMAGE:", { collectionId, imageIndex });
+        
+        const collectionItem = collection.find((c) => c.id === collectionId);
+        if (!collectionItem) {
+          throw new Error("Collection not found");
+        }
+
+        const updatedImages = collectionItem.images.filter((_, i) => i !== imageIndex);
+
+        const updatedItem = {
+          id: collectionId,
+          title: collectionItem.title || "",
+          images: updatedImages,
+          ...(collectionItem.description && { description: collectionItem.description }),
+          ...(collectionItem.category && { category: collectionItem.category }),
+        };
+
+        console.log("📤 CLEAN UPDATE DATA:", {
+          id: collectionId,
+          imageCount: updatedImages.length
+        });
+
         await updatecollection(collectionId, updatedItem);
+        console.log("✅ IMAGE DELETED SUCCESSFULLY");
+        
         if (editingSample?.id === collectionId) {
           setEditingSample(updatedItem);
         }
+        
       } catch (error) {
-        console.error("Failed to delete image:", error);
-        alert("Failed to delete image. Please try again.");
+        console.error("💥 IMAGE DELETE FAILED:", error);
+        alert(`Failed to delete image: ${error.message}`);
       }
     }
   };
 
+  // 🔥 RELATED IMAGES HANDLERS
   const handleAddRelatedImageClick = (collectionId, imageIndex) => {
     setAddingRelatedTo({ collectionId, imageIndex, relatedImageUrl: "" });
   };
@@ -212,8 +222,12 @@ const AdminDashboard = () => {
       </header>
 
       <div className={styles.tabs}>
-        <button className={activeTab === "gallery" ? styles.activeTab : ""} onClick={() => setActiveTab("gallery")}>Gallery</button>
-        <button className={activeTab === "collection" ? styles.activeTab : ""} onClick={() => setActiveTab("collection")}>Collections</button>
+        <button className={activeTab === "gallery" ? styles.activeTab : ""} onClick={() => setActiveTab("gallery")}>
+          Gallery
+        </button>
+        <button className={activeTab === "collection" ? styles.activeTab : ""} onClick={() => setActiveTab("collection")}>
+          Collections
+        </button>
       </div>
 
       {activeTab === "gallery" && (
@@ -229,14 +243,14 @@ const AdminDashboard = () => {
             {gallery.length === 0 ? (
               <p>No images in gallery.</p>
             ) : (
-              gallery.map(img =>
-                <div key={img.id} className={styles.imageCard}>
+              gallery.map((img, index) => (
+                <div key={img.id || `gallery-${index}`} className={styles.imageCard}>
                   <img src={img.url} alt="Gallery" />
                   <div className={styles.cardButtons}>
                     <button onClick={() => handleDeleteGallery(img.id)}>Delete</button>
                   </div>
                 </div>
-              )
+              ))
             )}
           </div>
         </section>
@@ -245,44 +259,53 @@ const AdminDashboard = () => {
       {activeTab === "collection" && (
         <section className={styles.section}>
           <h2>Collection Management</h2>
-
           <SampleForm onSave={handleSaveCollection} editingSample={editingSample} setEditingSample={setEditingSample} />
 
           <div className={styles.imageGrid}>
-            {collection.map(item =>
+            {collection.map((item) => (
               <div key={item.id} className={styles.imageCard}>
                 <div className={styles.collectionImages}>
-                  {item.images?.map((img, idx) =>
-                    <div key={idx} className={styles.imageCard}>
+                  {item.images?.map((img, idx) => (
+                    <div key={`${item.id}-img-${idx}`} className={styles.imageCard}>
                       <img src={img.url || img} alt={`${item.title || "Collection"} image ${idx + 1}`} />
 
+                      {/* 🔥 RELATED IMAGES DISPLAY */}
                       {(img.relatedImages && img.relatedImages.length > 0) && (
                         <div className={styles.relatedImages}>
                           <p>Related Images:</p>
                           <div className={styles.relatedImagesGrid}>
-                            {img.relatedImages.map((relImg, relIdx) =>
-                              <div key={relIdx} className={styles.relatedImageCard}>
+                            {img.relatedImages.map((relImg, relIdx) => (
+                              <div key={`${item.id}-related-${relIdx}`} className={styles.relatedImageCard}>
                                 <img src={relImg} alt="Related" />
-                                <button onClick={() => handleRemoveRelatedImage(item.id, idx, relImg)}>Remove</button>
+                                <button onClick={() => handleRemoveRelatedImage(item.id, idx, relImg)}>
+                                  Remove
+                                </button>
                               </div>
-                            )}
+                            ))}
                           </div>
                         </div>
                       )}
 
+                      {/* 🔥 ADD RELATED IMAGES UI */}
                       {addingRelatedTo &&
                         addingRelatedTo.collectionId === item.id &&
                         addingRelatedTo.imageIndex === idx ? (
                           <div className={styles.addRelatedSection}>
                             <input type="file" accept="image/*" onChange={onRelatedFileChange} />
-                            <input type="text" placeholder="Enter related image URL"
+                            <input 
+                              type="text" 
+                              placeholder="Enter related image URL"
                               value={addingRelatedTo.relatedImageUrl || ""}
-                              onChange={e => setAddingRelatedTo({ ...addingRelatedTo, relatedImageUrl: e.target.value })} />
-                            <button onClick={handleAddRelatedImageByUrl}>Add Related Image by URL</button>
+                              onChange={e => setAddingRelatedTo({ ...addingRelatedTo, relatedImageUrl: e.target.value })} 
+                            />
+                            <button onClick={handleAddRelatedImageByUrl}>Add Related by URL</button>
                             <button onClick={() => setAddingRelatedTo(null)}>Cancel</button>
                           </div>
                         ) : (
-                          <button onClick={() => setAddingRelatedTo({ collectionId: item.id, imageIndex: idx, relatedImageUrl: "" })} className={styles.addRelatedBtn}>
+                          <button 
+                            onClick={() => handleAddRelatedImageClick(item.id, idx)}
+                            className={styles.addRelatedBtn}
+                          >
                             Add Related Image
                           </button>
                         )}
@@ -292,16 +315,22 @@ const AdminDashboard = () => {
                         <button onClick={() => handleDeleteImage(item.id, idx)}>Delete</button>
                       </div>
                     </div>
-                  )}
+                  ))}
                 </div>
                 {item.title && <p>{item.title}</p>}
                 {item.category && <p>{item.category}</p>}
                 <div className={styles.cardButtons}>
                   <button onClick={() => setEditingSample(item)}>Edit Collection</button>
-                  <button onClick={() => handleDeleteCollection(item.id)}>Delete Collection</button>
+                  <button 
+                    onClick={() => handleDeleteCollection(item.id)}
+                    disabled={deletingId === item.id}
+                    className={deletingId === item.id ? styles.deletingButton : ""}
+                  >
+                    {deletingId === item.id ? "Deleting..." : "Delete Collection"}
+                  </button>
                 </div>
               </div>
-            )}
+            ))}
           </div>
         </section>
       )}
