@@ -12,6 +12,7 @@ import {
   query,
   orderBy,
   getDoc,
+  getDocs,
 } from "firebase/firestore";
 import {
   ref,
@@ -66,6 +67,63 @@ const cleanFirestoreData = (data) => {
   return clean;
 };
 
+// 🔥 FIXED MERGE: Preserve LOCAL titles/names, only override images + timestamps
+const mergeItemData = (baseItem, firestoreItem) => {
+  if (!baseItem) return null;
+
+  // 🔥 PRESERVE LOCAL CORE DATA (title, name, category, etc.)
+  const localCore = {
+    id: baseItem.id,
+    name: baseItem.name || baseItem.title,  // Support both naming conventions
+    title: baseItem.title || baseItem.name,
+    category: baseItem.category,
+    description: baseItem.description,
+    // Add any other local-only fields here
+    ...baseItem
+  };
+
+  if (!firestoreItem) {
+    return {
+      ...localCore,
+      images: normalizeImages(baseItem.images)
+    };
+  }
+
+  // 🔥 MERGE IMAGES ONLY: Base + Firestore enhancements
+  const baseImages = normalizeImages(baseItem.images || []);
+  const fireImages = normalizeImages(firestoreItem.images || []);
+
+  const imagesByUrl = new Map();
+  
+  // Base images first (preserve originals)
+  baseImages.forEach(img => {
+    if (img?.url) {
+      imagesByUrl.set(img.url, { ...img });
+    }
+  });
+  
+  // Firestore image updates (new uploads + relatedImages)
+  fireImages.forEach(img => {
+    if (img?.url) {
+      const existing = imagesByUrl.get(img.url);
+      imagesByUrl.set(img.url, { 
+        ...img,
+        relatedImages: Array.from(new Set([
+          ...(existing?.relatedImages || []),
+          ...(img.relatedImages || [])
+        ]))
+      });
+    }
+  });
+
+  return {
+    ...localCore,                           // 🔥 LOCAL TITLES ALWAYS WIN
+    images: Array.from(imagesByUrl.values()), // Merged images
+    createdAt: firestoreItem.createdAt || baseItem.createdAt,
+    updatedAt: firestoreItem.updatedAt || new Date()
+  };
+};
+
 export function DataProvider({ children }) {
   const { currentUser, loading: authLoading } = useAuth();
   const [gallery, setGallery] = useState([]);
@@ -73,9 +131,57 @@ export function DataProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [deletedItems, setDeletedItems] = useState(loadDeletedItems());
   const deletedItemsRef = useRef(deletedItems);
+  const isInitializedRef = useRef(false);
   
-  // 🔥 SINGLE RUNNING LISTENERS - EMPTY DEPENDENCY ARRAY
+  // 🔥 INITIALIZE with FIXED merge
   useEffect(() => {
+    const initializeData = async () => {
+      if (isInitializedRef.current || !currentUser) return;
+      
+      console.log("🔥 INITIALIZING DATA...");
+      isInitializedRef.current = true;
+      
+      try {
+        const collectionSnapshot = await getDocs(query(
+          collection(db, "collectionImages")
+        ));
+        
+        const firestoreDataMap = new Map();
+        collectionSnapshot.forEach((docSnap) => {
+          firestoreDataMap.set(docSnap.id, docSnap.data());
+        });
+
+        console.log(`🔥 Firestore: ${firestoreDataMap.size} docs`);
+
+        // 🔥 MERGE with title preservation
+        const mergedCollections = initialCollection
+          .filter(item => !deletedItemsRef.current.has(item.id))
+          .map(baseItem => mergeItemData(baseItem, firestoreDataMap.get(baseItem.id)))
+          .filter(Boolean);
+
+        console.log(`✅ Initialized: ${mergedCollections.length}/${initialCollection.length} collections`);
+        console.log("🔍 First few titles:", mergedCollections.slice(0, 3).map(c => ({ id: c.id, title: c.title || c.name })));
+        
+        setCollections(mergedCollections);
+        
+      } catch (error) {
+        console.error("💥 Init failed:", error);
+        const filteredLocal = initialCollection.filter(item => 
+          !deletedItemsRef.current.has(item.id)
+        );
+        setCollections(filteredLocal.map(mergeItemData));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeData();
+  }, [currentUser]);
+
+  // 🔥 LISTENER with FIXED merge
+  useEffect(() => {
+    if (!isInitializedRef.current) return;
+    
     console.log("🔥 SETUP SINGLE LISTENERS");
     
     const qGallery = query(
@@ -95,80 +201,31 @@ export function DataProvider({ children }) {
       orderBy("createdAt", "desc")
     );
     const unsubCollection = onSnapshot(qCollection, (snapshot) => {
-      const firestoreData = [];
-      snapshot.forEach((docSnap) =>
-        firestoreData.push({ id: docSnap.id, ...docSnap.data() })
-      );
-
-      // 🔥 APPLY DELETED FILTER HERE (ref.current = reactive)
-      const allowedIds = new Set(
-        initialCollection
-          .map(item => item.id)
-          .filter(id => !deletedItemsRef.current.has(id))
-      );
-      const validFirestoreData = firestoreData.filter(item => allowedIds.has(item.id));
+      const firestoreDataMap = new Map();
+      snapshot.forEach((docSnap) => {
+        firestoreDataMap.set(docSnap.id, docSnap.data());
+      });
 
       const mergedCollections = initialCollection
-        .filter(baseItem => !deletedItemsRef.current.has(baseItem.id))
-        .map((baseItem) => {
-          const fireItem = validFirestoreData.find(item => item.id === baseItem.id);
-          
-          if (fireItem) {
-            const baseImages = normalizeImages(baseItem.images);
-            const fireImages = normalizeImages(fireItem.images);
-            
-            const byUrl = new Map();
-            baseImages.forEach((img) => {
-              if (img?.url) byUrl.set(img.url, { ...img });
-            });
-            fireImages.forEach((img) => {
-              if (img?.url) {
-                const existing = byUrl.get(img.url);
-                const mergedRelated = Array.from(
-                  new Set([
-                    ...(existing?.relatedImages || []),
-                    ...(img.relatedImages || [])
-                  ])
-                );
-                byUrl.set(img.url, { 
-                  ...img, 
-                  relatedImages: mergedRelated 
-                });
-              }
-            });
-            
-            return {
-              ...baseItem,
-              ...fireItem,
-              images: Array.from(byUrl.values()),
-            };
-          }
-          
-          return {
-            ...baseItem,
-            images: normalizeImages(baseItem.images),
-          };
-        });
+        .filter(item => !deletedItemsRef.current.has(item.id))
+        .map(baseItem => mergeItemData(baseItem, firestoreDataMap.get(baseItem.id)))
+        .filter(Boolean);
 
-      console.log(`✅ Showing ${mergedCollections.length}/${initialCollection.length} collections (deleted: ${deletedItemsRef.current.size})`);
+      console.log(`🔄 Listener: ${mergedCollections.length} collections`);
       setCollections(mergedCollections);
-      if (loading) setLoading(false);
     });
 
-    // 🔥 SINGLE CLEANUP - Runs only on unmount
     return () => {
       console.log("🔥 CLEANUP LISTENERS");
       unsubGallery();
       unsubCollection();
     };
-  }, []); // 🔥 EMPTY = SINGLE LISTENER FOREVER!
+  }, []);
 
-  // 🔥 SYNC REF WITH STATE (doesn't trigger re-render)
   useEffect(() => {
     deletedItemsRef.current = deletedItems;
   }, [deletedItems]);
 
-  // 🔥 LOAD DELETED ITEMS ON STARTUP
   useEffect(() => {
     const loaded = loadDeletedItems();
     setDeletedItems(loaded);
@@ -218,9 +275,6 @@ export function DataProvider({ children }) {
 
     console.log("🔄 updatecollection:", { id, imageCount: updatedItem.images?.length });
 
-    const cleanItem = cleanFirestoreData(updatedItem);
-
-    // 🔥 RESTORE IF DELETED
     setDeletedItems(prev => {
       const newSet = new Set(prev);
       newSet.delete(id);
@@ -230,57 +284,25 @@ export function DataProvider({ children }) {
 
     const docRef = doc(db, "collectionImages", id);
 
-    if (!cleanItem.images?.some(img => img.file)) {
-      console.log("📤 DIRECT UPDATE (no files)");
-      const updateData = {
-        ...cleanItem,
-        images: normalizeImages(cleanItem.images),
-        updatedAt: new Date()
-      };
+    // 🔥 ONLY SAVE IMAGES + TIMESTAMPS, preserve local titles via merge logic
+    const updateData = {
+      images: normalizeImages(updatedItem.images),
+      updatedAt: new Date()
+    };
+
+    try {
       await updateDoc(docRef, cleanFirestoreData(updateData));
       console.log("✅ SIMPLE UPDATE SUCCESS");
-      return;
-    }
-
-    console.log("📤 FILE UPLOAD UPDATE");
-    const docSnap = await getDoc(docRef);
-    const newImages = await Promise.all(
-      (cleanItem.images || []).map(async (img) => {
-        if (img.file) {
-          const url = await uploadImage(img.file, "collections");
-          return { url, relatedImages: img.relatedImages || [] };
-        }
-        return normalizeImage(img);
-      })
-    );
-
-    if (docSnap.exists()) {
-      const existingData = docSnap.data();
-      const existingImages = normalizeImages(existingData.images || []);
-
-      const imagesByUrl = new Map();
-      existingImages.forEach((img) => {
-        if (img?.url) imagesByUrl.set(img.url, img);
-      });
-      newImages.forEach((img) => {
-        if (img?.url) imagesByUrl.set(img.url, img);
-      });
-
-      const mergedImages = Array.from(imagesByUrl.values());
-      const updateData = {
-        ...cleanItem,
-        images: mergedImages,
-        updatedAt: new Date()
-      };
-      await updateDoc(docRef, cleanFirestoreData(updateData));
-    } else {
+    } catch (error) {
+      // Create if doesn't exist
       await setDoc(docRef, cleanFirestoreData({
-        ...cleanItem,
-        images: newImages,
-        createdAt: new Date()
+        images: normalizeImages(updatedItem.images),
+        createdAt: new Date(),
+        updatedAt: new Date()
       }));
+      console.log("✅ CREATE SUCCESS");
     }
-  }, [currentUser, uploadImage]);
+  }, [currentUser]);
 
   const addcollection = useCallback(async (item) => {
     if (!currentUser) throw new Error("Not authenticated");
@@ -293,45 +315,20 @@ export function DataProvider({ children }) {
     });
 
     const docRef = doc(db, "collectionImages", item.id);
-    const docSnap = await getDoc(docRef);
+    
+    // 🔥 ONLY SAVE IMAGES + TIMESTAMPS
+    const docData = {
+      images: normalizeImages(item.images),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
 
-    const newImages = await Promise.all(
-      (item.images || []).map(async (img) => {
-        if (img.file) {
-          const url = await uploadImage(img.file, "collections");
-          return { url, relatedImages: img.relatedImages || [] };
-        }
-        return normalizeImage(img);
-      })
-    );
-
-    const cleanItem = cleanFirestoreData(item);
-    if (docSnap.exists()) {
-      const existingData = docSnap.data();
-      const existingImages = normalizeImages(existingData.images || []);
-
-      const imagesByUrl = new Map();
-      existingImages.forEach((img) => {
-        if (img?.url) imagesByUrl.set(img.url, img);
-      });
-      newImages.forEach((img) => {
-        if (img?.url) imagesByUrl.set(img.url, img);
-      });
-
-      const mergedImages = Array.from(imagesByUrl.values());
-      await updateDoc(docRef, cleanFirestoreData({
-        ...cleanItem,
-        images: mergedImages,
-        updatedAt: new Date()
-      }));
-    } else {
-      await setDoc(docRef, cleanFirestoreData({
-        ...cleanItem,
-        images: newImages,
-        createdAt: new Date()
-      }));
+    try {
+      await updateDoc(docRef, cleanFirestoreData(docData));
+    } catch {
+      await setDoc(docRef, cleanFirestoreData(docData));
     }
-  }, [currentUser, uploadImage]);
+  }, [currentUser]);
 
   const deletecollection = useCallback(async (collectionId) => {
     console.log("🚀 deletecollection:", { collectionId });
@@ -356,7 +353,6 @@ export function DataProvider({ children }) {
       }
 
       return { success: true, id: collectionId };
-      
     } catch (error) {
       console.error("💥 deletecollection FAILED:", error);
       setDeletedItems(prev => {
@@ -397,8 +393,7 @@ export function DataProvider({ children }) {
 
     const docRef = doc(db, "collectionImages", collectionId);
     const docSnap = await getDoc(docRef);
-    let data = docSnap.exists() ? docSnap.data() : null;
-
+    
     const mergedItem = collections.find((c) => c.id === collectionId);
     if (!mergedItem) throw new Error("Collection item not found");
 
@@ -408,18 +403,15 @@ export function DataProvider({ children }) {
     const targetImage = mergedImages[imageIndex];
     if (!targetImage?.url) throw new Error("Target image URL not found");
 
-    let firestoreImages = data?.images ? normalizeImages(data.images) : [];
-
+    let firestoreImages = docSnap.exists() ? normalizeImages(docSnap.data().images || []) : [];
     let fireImageIndex = firestoreImages.findIndex((img) => img.url === targetImage.url);
 
     if (fireImageIndex === -1) {
-      if (imageIndex > firestoreImages.length) {
-        firestoreImages.push({ url: targetImage.url, relatedImages: targetImage.relatedImages || [] });
-        fireImageIndex = firestoreImages.length - 1;
-      } else {
-        firestoreImages.splice(imageIndex, 0, { url: targetImage.url, relatedImages: targetImage.relatedImages || [] });
-        fireImageIndex = imageIndex;
-      }
+      firestoreImages.splice(imageIndex, 0, { 
+        url: targetImage.url, 
+        relatedImages: targetImage.relatedImages || [] 
+      });
+      fireImageIndex = imageIndex;
     }
 
     const updatedImages = firestoreImages.map((img, idx) => {
@@ -435,10 +427,17 @@ export function DataProvider({ children }) {
       return img;
     });
 
-    if (data) {
-      await updateDoc(docRef, { images: updatedImages });
+    if (docSnap.exists()) {
+      await updateDoc(docRef, { 
+        images: updatedImages, 
+        updatedAt: new Date() 
+      });
     } else {
-      await setDoc(docRef, { images: updatedImages, createdAt: new Date() });
+      await setDoc(docRef, { 
+        images: updatedImages, 
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
     }
   }, [currentUser, uploadImage, collections]);
 
@@ -450,7 +449,6 @@ export function DataProvider({ children }) {
 
     const docRef = doc(db, "collectionImages", collectionId);
     const docSnap = await getDoc(docRef);
-    let data = docSnap.exists() ? docSnap.data() : null;
 
     const mergedItem = collections.find((c) => c.id === collectionId);
     if (!mergedItem) throw new Error("Collection item not found");
@@ -461,18 +459,15 @@ export function DataProvider({ children }) {
     const targetImage = mergedImages[imageIndex];
     if (!targetImage?.url) throw new Error("Target image URL not found");
 
-    let firestoreImages = data?.images ? normalizeImages(data.images) : [];
-
+    let firestoreImages = docSnap.exists() ? normalizeImages(docSnap.data().images || []) : [];
     let fireImageIndex = firestoreImages.findIndex((img) => img.url === targetImage.url);
 
     if (fireImageIndex === -1) {
-      if (imageIndex > firestoreImages.length) {
-        firestoreImages.push({ url: targetImage.url, relatedImages: targetImage.relatedImages || [] });
-        fireImageIndex = firestoreImages.length - 1;
-      } else {
-        firestoreImages.splice(imageIndex, 0, { url: targetImage.url, relatedImages: targetImage.relatedImages || [] });
-        fireImageIndex = imageIndex;
-      }
+      firestoreImages.splice(imageIndex, 0, { 
+        url: targetImage.url, 
+        relatedImages: targetImage.relatedImages || [] 
+      });
+      fireImageIndex = imageIndex;
     }
 
     const updatedImages = firestoreImages.map((img, idx) => {
@@ -483,10 +478,17 @@ export function DataProvider({ children }) {
       return img;
     });
 
-    if (data) {
-      await updateDoc(docRef, { images: updatedImages });
+    if (docSnap.exists()) {
+      await updateDoc(docRef, { 
+        images: updatedImages, 
+        updatedAt: new Date() 
+      });
     } else {
-      await setDoc(docRef, { images: updatedImages, createdAt: new Date() });
+      await setDoc(docRef, { 
+        images: updatedImages, 
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
     }
   }, [currentUser, collections]);
 
