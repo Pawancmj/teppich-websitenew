@@ -18,7 +18,7 @@ import {
   ref,
   uploadBytesResumable,
   getDownloadURL,
-} from "firebase/storage";
+} from "firebase/storage"; 
 
 import { gallery as hardcodedGallery } from "../data/gallery";
 import { initialCollection } from "../data/collection";
@@ -53,7 +53,7 @@ const saveDeletedItems = (deletedSet) => {
   try {
     localStorage.setItem('deletedCollections', JSON.stringify(Array.from(deletedSet)));
   } catch (error) {
-    console.error('Failed to save deleted items:', error);
+    console.error('Failed to save deleted item:', error);
   }
 };
 
