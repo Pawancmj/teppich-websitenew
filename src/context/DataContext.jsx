@@ -67,7 +67,7 @@ const cleanFirestoreData = (data) => {
   return clean;
 };
 
-// 🔥 FIXED MERGE: Preserve LOCAL titles/names, only override images + timestamps
+// 🔥 FIXED: Deduplicate images by URL during merge
 const mergeItemData = (baseItem, firestoreItem) => {
   if (!baseItem) return null;
 
@@ -87,29 +87,29 @@ const mergeItemData = (baseItem, firestoreItem) => {
     };
   }
 
-  const baseImages = normalizeImages(baseItem.images || []);
+  // 🔥 DEDUPLICATE: Keep only unique images by URL from Firestore first, then merge base
   const fireImages = normalizeImages(firestoreItem.images || []);
-
-  const imagesByUrl = new Map();
-  baseImages.forEach(img => {
-    if (img?.url) imagesByUrl.set(img.url, { ...img });
-  });
+  const uniqueFireImages = [];
+  const seenUrls = new Set();
+  
   fireImages.forEach(img => {
-    if (img?.url) {
-      const existing = imagesByUrl.get(img.url);
-      imagesByUrl.set(img.url, { 
-        ...img,
-        relatedImages: Array.from(new Set([
-          ...(existing?.relatedImages || []),
-          ...(img.relatedImages || [])
-        ]))
-      });
+    if (img?.url && !seenUrls.has(img.url)) {
+      seenUrls.add(img.url);
+      uniqueFireImages.push(img);
+    }
+  });
+
+  const baseImages = normalizeImages(baseItem.images || []);
+  baseImages.forEach(img => {
+    if (img?.url && !seenUrls.has(img.url)) {
+      seenUrls.add(img.url);
+      uniqueFireImages.push({ ...img, relatedImages: [] }); // Base images get empty relatedImages
     }
   });
 
   return {
     ...localCore,
-    images: Array.from(imagesByUrl.values()),
+    images: uniqueFireImages,
     createdAt: firestoreItem.createdAt || baseItem.createdAt,
     updatedAt: firestoreItem.updatedAt || new Date()
   };
@@ -141,7 +141,7 @@ export function DataProvider({ children }) {
     });
   }, []);
 
-  // 🔥 INITIALIZE with filtering orphan Firestore docs
+  // 🔥 INITIALIZE - unchanged
   useEffect(() => {
     const initializeData = async () => {
       if (isInitializedRef.current || !currentUser) return;
@@ -185,7 +185,7 @@ export function DataProvider({ children }) {
     initializeData();
   }, [currentUser]);
 
-  // 🔥 LISTENER with same filtering to exclude orphans
+  // 🔥 LISTENER - unchanged but benefits from fixed mergeItemData
   useEffect(() => {
     if (!isInitializedRef.current) return;
     
@@ -351,7 +351,7 @@ export function DataProvider({ children }) {
     });
   }, []);
 
-  // 🔥 Safe related image addition, uses initialCollection stable IDs only
+  // 🔥 FIXED: No more splice/insert - find & update existing image only
   const addRelatedImage = useCallback(async (collectionId, imageIndex, relatedImageFileOrUrl) => {
     if (!currentUser) throw new Error("Not authenticated");
     
@@ -377,19 +377,29 @@ export function DataProvider({ children }) {
     const targetImage = baseImages[imageIndex];
     if (!targetImage?.url) throw new Error("Target image URL not found");
 
+    // 🔥 Get ALL Firestore images, deduplicate by URL first
     let firestoreImages = docSnap.exists() ? normalizeImages(docSnap.data()?.images || []) : [];
-    let fireImageIndex = firestoreImages.findIndex(img => img.url === targetImage.url);
+    
+    // 🔥 DEDUPLICATE: Keep only first occurrence of each URL
+    const uniqueImages = [];
+    const seenUrls = new Set();
+    firestoreImages.forEach(img => {
+      if (img?.url && !seenUrls.has(img.url)) {
+        seenUrls.add(img.url);
+        uniqueImages.push(img);
+      }
+    });
 
-    if (fireImageIndex === -1) {
-      firestoreImages.splice(imageIndex, 0, { 
-        url: targetImage.url, 
-        relatedImages: targetImage.relatedImages || [] 
-      });
-      fireImageIndex = imageIndex;
+    // 🔥 Ensure target image exists (add if missing, but deduplicated)
+    let targetImageIndex = uniqueImages.findIndex(img => img.url === targetImage.url);
+    if (targetImageIndex === -1) {
+      uniqueImages.push({ url: targetImage.url, relatedImages: [] });
+      targetImageIndex = uniqueImages.length - 1;
     }
 
-    const updatedImages = firestoreImages.map((img, idx) => {
-      if (idx === fireImageIndex) {
+    // 🔥 Update only the target image's relatedImages
+    const updatedImages = uniqueImages.map((img, idx) => {
+      if (idx === targetImageIndex) {
         const relatedImages = img.relatedImages || [];
         if (!relatedImages.includes(relatedImageUrl)) {
           return {
@@ -415,7 +425,7 @@ export function DataProvider({ children }) {
     }
   }, [currentUser, uploadImage]);
 
-  // 🔥 Safe related image removal, stable refs only
+  // 🔥 FIXED: Same deduplication logic for removal
   const removeRelatedImage = useCallback(async (collectionId, imageIndex, relatedImageUrl) => {
     if (!currentUser) throw new Error("Not authenticated");
     if (deletedItemsRef.current.has(collectionId)) {
@@ -434,19 +444,26 @@ export function DataProvider({ children }) {
     const targetImage = baseImages[imageIndex];
     if (!targetImage?.url) throw new Error("Target image URL not found");
 
+    // 🔥 Same deduplication as addRelatedImage
     let firestoreImages = docSnap.exists() ? normalizeImages(docSnap.data()?.images || []) : [];
-    let fireImageIndex = firestoreImages.findIndex(img => img.url === targetImage.url);
+    
+    const uniqueImages = [];
+    const seenUrls = new Set();
+    firestoreImages.forEach(img => {
+      if (img?.url && !seenUrls.has(img.url)) {
+        seenUrls.add(img.url);
+        uniqueImages.push(img);
+      }
+    });
 
-    if (fireImageIndex === -1) {
-      firestoreImages.splice(imageIndex, 0, { 
-        url: targetImage.url, 
-        relatedImages: targetImage.relatedImages || [] 
-      });
-      fireImageIndex = imageIndex;
+    let targetImageIndex = uniqueImages.findIndex(img => img.url === targetImage.url);
+    if (targetImageIndex === -1) {
+      uniqueImages.push({ url: targetImage.url, relatedImages: [] });
+      targetImageIndex = uniqueImages.length - 1;
     }
 
-    const updatedImages = firestoreImages.map((img, idx) => {
-      if (idx === fireImageIndex) {
+    const updatedImages = uniqueImages.map((img, idx) => {
+      if (idx === targetImageIndex) {
         const relatedImages = (img.relatedImages || []).filter(rel => rel !== relatedImageUrl);
         return { ...img, relatedImages };
       }
