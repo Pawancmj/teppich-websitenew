@@ -71,14 +71,12 @@ const cleanFirestoreData = (data) => {
 const mergeItemData = (baseItem, firestoreItem) => {
   if (!baseItem) return null;
 
-  // 🔥 PRESERVE LOCAL CORE DATA (title, name, category, etc.)
   const localCore = {
     id: baseItem.id,
-    name: baseItem.name || baseItem.title,  // Support both naming conventions
+    name: baseItem.name || baseItem.title,
     title: baseItem.title || baseItem.name,
     category: baseItem.category,
     description: baseItem.description,
-    // Add any other local-only fields here
     ...baseItem
   };
 
@@ -89,20 +87,13 @@ const mergeItemData = (baseItem, firestoreItem) => {
     };
   }
 
-  // 🔥 MERGE IMAGES ONLY: Base + Firestore enhancements
   const baseImages = normalizeImages(baseItem.images || []);
   const fireImages = normalizeImages(firestoreItem.images || []);
 
   const imagesByUrl = new Map();
-  
-  // Base images first (preserve originals)
   baseImages.forEach(img => {
-    if (img?.url) {
-      imagesByUrl.set(img.url, { ...img });
-    }
+    if (img?.url) imagesByUrl.set(img.url, { ...img });
   });
-  
-  // Firestore image updates (new uploads + relatedImages)
   fireImages.forEach(img => {
     if (img?.url) {
       const existing = imagesByUrl.get(img.url);
@@ -117,8 +108,8 @@ const mergeItemData = (baseItem, firestoreItem) => {
   });
 
   return {
-    ...localCore,                           // 🔥 LOCAL TITLES ALWAYS WIN
-    images: Array.from(imagesByUrl.values()), // Merged images
+    ...localCore,
+    images: Array.from(imagesByUrl.values()),
     createdAt: firestoreItem.createdAt || baseItem.createdAt,
     updatedAt: firestoreItem.updatedAt || new Date()
   };
@@ -133,7 +124,24 @@ export function DataProvider({ children }) {
   const deletedItemsRef = useRef(deletedItems);
   const isInitializedRef = useRef(false);
   
-  // 🔥 INITIALIZE with FIXED merge
+  const uploadImage = useCallback(async (file, folder = "images") => {
+    if (!file) return null;
+    const storageRef = ref(storage, `${folder}/${Date.now()}_${file.name}`);
+    const uploadTask = uploadBytesResumable(storageRef, file);
+    return new Promise((resolve, reject) => {
+      uploadTask.on(
+        "state_changed",
+        null,
+        (error) => reject(error),
+        async () => {
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+          resolve(downloadURL);
+        }
+      );
+    });
+  }, []);
+
+  // 🔥 INITIALIZE with filtering orphan Firestore docs
   useEffect(() => {
     const initializeData = async () => {
       if (isInitializedRef.current || !currentUser) return;
@@ -148,20 +156,19 @@ export function DataProvider({ children }) {
         
         const firestoreDataMap = new Map();
         collectionSnapshot.forEach((docSnap) => {
-          firestoreDataMap.set(docSnap.id, docSnap.data());
+          if (initialCollection.some(item => item.id === docSnap.id)) {
+            firestoreDataMap.set(docSnap.id, docSnap.data());
+          }
         });
 
-        console.log(`🔥 Firestore: ${firestoreDataMap.size} docs`);
+        console.log(`🔥 Firestore: ${firestoreDataMap.size} matching docs`);
 
-        // 🔥 MERGE with title preservation
         const mergedCollections = initialCollection
           .filter(item => !deletedItemsRef.current.has(item.id))
           .map(baseItem => mergeItemData(baseItem, firestoreDataMap.get(baseItem.id)))
           .filter(Boolean);
 
-        console.log(`✅ Initialized: ${mergedCollections.length}/${initialCollection.length} collections`);
-        console.log("🔍 First few titles:", mergedCollections.slice(0, 3).map(c => ({ id: c.id, title: c.title || c.name })));
-        
+        console.log(`✅ Initialized: ${mergedCollections.length} collections`);
         setCollections(mergedCollections);
         
       } catch (error) {
@@ -169,7 +176,7 @@ export function DataProvider({ children }) {
         const filteredLocal = initialCollection.filter(item => 
           !deletedItemsRef.current.has(item.id)
         );
-        setCollections(filteredLocal.map(mergeItemData));
+        setCollections(filteredLocal.map(item => mergeItemData(item, null)));
       } finally {
         setLoading(false);
       }
@@ -178,7 +185,7 @@ export function DataProvider({ children }) {
     initializeData();
   }, [currentUser]);
 
-  // 🔥 LISTENER with FIXED merge
+  // 🔥 LISTENER with same filtering to exclude orphans
   useEffect(() => {
     if (!isInitializedRef.current) return;
     
@@ -203,7 +210,9 @@ export function DataProvider({ children }) {
     const unsubCollection = onSnapshot(qCollection, (snapshot) => {
       const firestoreDataMap = new Map();
       snapshot.forEach((docSnap) => {
-        firestoreDataMap.set(docSnap.id, docSnap.data());
+        if (initialCollection.some(item => item.id === docSnap.id)) {
+          firestoreDataMap.set(docSnap.id, docSnap.data());
+        }
       });
 
       const mergedCollections = initialCollection
@@ -211,12 +220,10 @@ export function DataProvider({ children }) {
         .map(baseItem => mergeItemData(baseItem, firestoreDataMap.get(baseItem.id)))
         .filter(Boolean);
 
-      console.log(`🔄 Listener: ${mergedCollections.length} collections`);
       setCollections(mergedCollections);
     });
 
     return () => {
-      console.log("🔥 CLEANUP LISTENERS");
       unsubGallery();
       unsubCollection();
     };
@@ -232,23 +239,6 @@ export function DataProvider({ children }) {
   }, []);
 
   const combinedGallery = [...hardcodedGallery, ...gallery];
-
-  const uploadImage = useCallback(async (file, folder = "images") => {
-    if (!file) return null;
-    const storageRef = ref(storage, `${folder}/${Date.now()}_${file.name}`);
-    const uploadTask = uploadBytesResumable(storageRef, file);
-    return new Promise((resolve, reject) => {
-      uploadTask.on(
-        "state_changed",
-        null,
-        (error) => reject(error),
-        async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          resolve(downloadURL);
-        }
-      );
-    });
-  }, []);
 
   const addgallery = useCallback(async (item) => {
     if (!currentUser) throw new Error("Not authenticated");
@@ -273,8 +263,6 @@ export function DataProvider({ children }) {
   const updatecollection = useCallback(async (id, updatedItem) => {
     if (!currentUser) throw new Error("Not authenticated");
 
-    console.log("🔄 updatecollection:", { id, imageCount: updatedItem.images?.length });
-
     setDeletedItems(prev => {
       const newSet = new Set(prev);
       newSet.delete(id);
@@ -283,8 +271,6 @@ export function DataProvider({ children }) {
     });
 
     const docRef = doc(db, "collectionImages", id);
-
-    // 🔥 ONLY SAVE IMAGES + TIMESTAMPS, preserve local titles via merge logic
     const updateData = {
       images: normalizeImages(updatedItem.images),
       updatedAt: new Date()
@@ -292,15 +278,12 @@ export function DataProvider({ children }) {
 
     try {
       await updateDoc(docRef, cleanFirestoreData(updateData));
-      console.log("✅ SIMPLE UPDATE SUCCESS");
     } catch (error) {
-      // Create if doesn't exist
       await setDoc(docRef, cleanFirestoreData({
         images: normalizeImages(updatedItem.images),
         createdAt: new Date(),
         updatedAt: new Date()
       }));
-      console.log("✅ CREATE SUCCESS");
     }
   }, [currentUser]);
 
@@ -315,8 +298,6 @@ export function DataProvider({ children }) {
     });
 
     const docRef = doc(db, "collectionImages", item.id);
-    
-    // 🔥 ONLY SAVE IMAGES + TIMESTAMPS
     const docData = {
       images: normalizeImages(item.images),
       createdAt: new Date(),
@@ -331,8 +312,6 @@ export function DataProvider({ children }) {
   }, [currentUser]);
 
   const deletecollection = useCallback(async (collectionId) => {
-    console.log("🚀 deletecollection:", { collectionId });
-
     if (!currentUser) throw new Error("Please login first!");
 
     try {
@@ -340,7 +319,6 @@ export function DataProvider({ children }) {
         const newSet = new Set(prev);
         newSet.add(collectionId);
         saveDeletedItems(newSet);
-        console.log("✅ STATE DELETED:", Array.from(newSet));
         return newSet;
       });
 
@@ -349,7 +327,6 @@ export function DataProvider({ children }) {
       
       if (docSnap.exists()) {
         await deleteDoc(docRef);
-        console.log("✅ FIRESTORE DELETED:", collectionId);
       }
 
       return { success: true, id: collectionId };
@@ -370,41 +347,38 @@ export function DataProvider({ children }) {
       const newSet = new Set(prev);
       newSet.delete(collectionId);
       saveDeletedItems(newSet);
-      console.log("🔄 RESTORED:", collectionId);
       return newSet;
     });
   }, []);
 
+  // 🔥 Safe related image addition, uses initialCollection stable IDs only
   const addRelatedImage = useCallback(async (collectionId, imageIndex, relatedImageFileOrUrl) => {
     if (!currentUser) throw new Error("Not authenticated");
+    
     if (deletedItemsRef.current.has(collectionId)) {
       throw new Error("Cannot modify deleted collection");
     }
 
     let relatedImageUrl = relatedImageFileOrUrl;
-    if (
-      relatedImageFileOrUrl instanceof File ||
-      (typeof relatedImageFileOrUrl === "object" &&
-        relatedImageFileOrUrl !== null &&
-        relatedImageFileOrUrl.name)
-    ) {
+    if (relatedImageFileOrUrl instanceof File || 
+        (typeof relatedImageFileOrUrl === "object" && relatedImageFileOrUrl?.name)) {
       relatedImageUrl = await uploadImage(relatedImageFileOrUrl, "relatedImages");
     }
 
     const docRef = doc(db, "collectionImages", collectionId);
     const docSnap = await getDoc(docRef);
-    
-    const mergedItem = collections.find((c) => c.id === collectionId);
-    if (!mergedItem) throw new Error("Collection item not found");
 
-    const mergedImages = normalizeImages(mergedItem.images);
-    if (imageIndex >= mergedImages.length) throw new Error("Image index out of bounds");
+    const baseItem = initialCollection.find(c => c.id === collectionId);
+    if (!baseItem) throw new Error("Collection item not found");
 
-    const targetImage = mergedImages[imageIndex];
+    const baseImages = normalizeImages(baseItem.images);
+    if (imageIndex >= baseImages.length) throw new Error("Image index out of bounds");
+
+    const targetImage = baseImages[imageIndex];
     if (!targetImage?.url) throw new Error("Target image URL not found");
 
-    let firestoreImages = docSnap.exists() ? normalizeImages(docSnap.data().images || []) : [];
-    let fireImageIndex = firestoreImages.findIndex((img) => img.url === targetImage.url);
+    let firestoreImages = docSnap.exists() ? normalizeImages(docSnap.data()?.images || []) : [];
+    let fireImageIndex = firestoreImages.findIndex(img => img.url === targetImage.url);
 
     if (fireImageIndex === -1) {
       firestoreImages.splice(imageIndex, 0, { 
@@ -430,17 +404,18 @@ export function DataProvider({ children }) {
     if (docSnap.exists()) {
       await updateDoc(docRef, { 
         images: updatedImages, 
-        updatedAt: new Date() 
+        updatedAt: new Date(),
       });
     } else {
       await setDoc(docRef, { 
         images: updatedImages, 
         createdAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
       });
     }
-  }, [currentUser, uploadImage, collections]);
+  }, [currentUser, uploadImage]);
 
+  // 🔥 Safe related image removal, stable refs only
   const removeRelatedImage = useCallback(async (collectionId, imageIndex, relatedImageUrl) => {
     if (!currentUser) throw new Error("Not authenticated");
     if (deletedItemsRef.current.has(collectionId)) {
@@ -450,17 +425,17 @@ export function DataProvider({ children }) {
     const docRef = doc(db, "collectionImages", collectionId);
     const docSnap = await getDoc(docRef);
 
-    const mergedItem = collections.find((c) => c.id === collectionId);
-    if (!mergedItem) throw new Error("Collection item not found");
+    const baseItem = initialCollection.find(c => c.id === collectionId);
+    if (!baseItem) throw new Error("Collection item not found");
 
-    const mergedImages = normalizeImages(mergedItem.images);
-    if (imageIndex >= mergedImages.length) throw new Error("Image index out of bounds");
+    const baseImages = normalizeImages(baseItem.images);
+    if (imageIndex >= baseImages.length) throw new Error("Image index out of bounds");
 
-    const targetImage = mergedImages[imageIndex];
+    const targetImage = baseImages[imageIndex];
     if (!targetImage?.url) throw new Error("Target image URL not found");
 
-    let firestoreImages = docSnap.exists() ? normalizeImages(docSnap.data().images || []) : [];
-    let fireImageIndex = firestoreImages.findIndex((img) => img.url === targetImage.url);
+    let firestoreImages = docSnap.exists() ? normalizeImages(docSnap.data()?.images || []) : [];
+    let fireImageIndex = firestoreImages.findIndex(img => img.url === targetImage.url);
 
     if (fireImageIndex === -1) {
       firestoreImages.splice(imageIndex, 0, { 
@@ -472,7 +447,7 @@ export function DataProvider({ children }) {
 
     const updatedImages = firestoreImages.map((img, idx) => {
       if (idx === fireImageIndex) {
-        const relatedImages = (img.relatedImages || []).filter((rel) => rel !== relatedImageUrl);
+        const relatedImages = (img.relatedImages || []).filter(rel => rel !== relatedImageUrl);
         return { ...img, relatedImages };
       }
       return img;
@@ -481,16 +456,16 @@ export function DataProvider({ children }) {
     if (docSnap.exists()) {
       await updateDoc(docRef, { 
         images: updatedImages, 
-        updatedAt: new Date() 
+        updatedAt: new Date(),
       });
     } else {
       await setDoc(docRef, { 
         images: updatedImages, 
         createdAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
       });
     }
-  }, [currentUser, collections]);
+  }, [currentUser]);
 
   return (
     <DataContext.Provider
@@ -507,6 +482,7 @@ export function DataProvider({ children }) {
         restorecollection,
         addRelatedImage,
         removeRelatedImage,
+        uploadImage,
       }}
     >
       {children}
